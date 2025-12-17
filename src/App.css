@@ -1,0 +1,14 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex: 1;
+}
+
+/* Add padding when navbar is present */
+.main-content.with-navbar {
+  padding-top: 1rem;
+}
