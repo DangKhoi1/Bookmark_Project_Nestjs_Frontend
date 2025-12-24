@@ -1,0 +1,62 @@
+.favorite-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.favorite-btn:hover {
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.favorite-btn .star-icon {
+    color: #94a3b8;
+    transition: all 0.2s;
+}
+
+.favorite-btn:hover .star-icon {
+    color: #fbbf24;
+}
+
+.favorite-btn.active .star-icon {
+    color: #fbbf24;
+}
+
+/* Sizes */
+.favorite-btn.size-small {
+    padding: 0.3rem;
+}
+
+.favorite-btn.size-small .star-icon {
+    font-size: 1rem;
+}
+
+.favorite-btn.size-medium .star-icon {
+    font-size: 1.25rem;
+}
+
+.favorite-btn.size-large .star-icon {
+    font-size: 1.5rem;
+}
+
+/* Animation */
+.favorite-btn.animating .star-icon {
+    animation: starPop 0.3s ease-out;
+}
+
+@keyframes starPop {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.4);
+    }
+    100% {
+        transform: scale(1);
+    }
+}

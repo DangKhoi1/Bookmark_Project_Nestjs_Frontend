@@ -1,34 +1,63 @@
 import { create } from 'zustand';
 import api from '../api/axios';
-import type { Bookmark, CreateBookmarkDto, EditBookmarkDto } from '../types';
+import type { Bookmark, CreateBookmarkDto, EditBookmarkDto, Pagination, PaginatedResponse, BookmarkFilterParams } from '../types';
 
 interface BookmarkState {
   bookmarks: Bookmark[];
   selectedBookmark: Bookmark | null;
+  pagination: Pagination | null;
+  filters: BookmarkFilterParams;
   isLoading: boolean;
   error: string | null;
 
   // Actions
-  fetchBookmarks: () => Promise<void>;
+  fetchBookmarks: (params?: BookmarkFilterParams) => Promise<void>;
   fetchBookmarkById: (id: number) => Promise<void>;
   createBookmark: (dto: CreateBookmarkDto) => Promise<void>;
   updateBookmark: (id: number, dto: EditBookmarkDto) => Promise<void>;
   deleteBookmark: (id: number) => Promise<void>;
+  toggleFavorite: (id: number) => Promise<void>;
+  setFilters: (filters: Partial<BookmarkFilterParams>) => void;
+  clearFilters: () => void;
   clearSelectedBookmark: () => void;
   clearError: () => void;
 }
 
-export const useBookmarkStore = create<BookmarkState>((set) => ({
+const defaultFilters: BookmarkFilterParams = {
+  sortBy: 'newest',
+  page: 1,
+  limit: 20,
+};
+
+export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   bookmarks: [],
   selectedBookmark: null,
+  pagination: null,
+  filters: defaultFilters,
   isLoading: false,
   error: null,
 
-  fetchBookmarks: async () => {
-    set({ isLoading: true, error: null });
+  fetchBookmarks: async (params?: BookmarkFilterParams) => {
+    const currentFilters = params || get().filters;
+    set({ isLoading: true, error: null, filters: currentFilters });
+    
     try {
-      const response = await api.get<Bookmark[]>('/bookmark');
-      set({ bookmarks: response.data, isLoading: false });
+      // Build query params
+      const queryParams = new URLSearchParams();
+      if (currentFilters.search) queryParams.set('search', currentFilters.search);
+      if (currentFilters.categoryId) queryParams.set('categoryId', String(currentFilters.categoryId));
+      if (currentFilters.tagId) queryParams.set('tagId', String(currentFilters.tagId));
+      if (currentFilters.isFavorite !== undefined) queryParams.set('isFavorite', String(currentFilters.isFavorite));
+      if (currentFilters.sortBy) queryParams.set('sortBy', currentFilters.sortBy);
+      if (currentFilters.page) queryParams.set('page', String(currentFilters.page));
+      if (currentFilters.limit) queryParams.set('limit', String(currentFilters.limit));
+
+      const response = await api.get<PaginatedResponse<Bookmark>>(`/bookmark?${queryParams.toString()}`);
+      set({ 
+        bookmarks: response.data.data, 
+        pagination: response.data.pagination,
+        isLoading: false 
+      });
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Không thể tải bookmarks',
@@ -53,11 +82,9 @@ export const useBookmarkStore = create<BookmarkState>((set) => ({
   createBookmark: async (dto: CreateBookmarkDto) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post<Bookmark>('/bookmark/create', dto);
-      set((state) => ({
-        bookmarks: [...state.bookmarks, response.data],
-        isLoading: false,
-      }));
+      await api.post<Bookmark>('/bookmark/create', dto);
+      // Refresh the list
+      await get().fetchBookmarks();
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Không thể tạo bookmark',
@@ -102,6 +129,31 @@ export const useBookmarkStore = create<BookmarkState>((set) => ({
       });
       throw error;
     }
+  },
+
+  toggleFavorite: async (id: number) => {
+    try {
+      const response = await api.patch<Bookmark>(`/bookmark/${id}/favorite`);
+      set((state) => ({
+        bookmarks: state.bookmarks.map((b) =>
+          b.id === id ? { ...b, isFavorite: response.data.isFavorite } : b
+        ),
+      }));
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Không thể cập nhật favorite',
+      });
+    }
+  },
+
+  setFilters: (newFilters: Partial<BookmarkFilterParams>) => {
+    const currentFilters = get().filters;
+    const updatedFilters = { ...currentFilters, ...newFilters, page: 1 };
+    get().fetchBookmarks(updatedFilters);
+  },
+
+  clearFilters: () => {
+    get().fetchBookmarks(defaultFilters);
   },
 
   clearSelectedBookmark: () => set({ selectedBookmark: null }),

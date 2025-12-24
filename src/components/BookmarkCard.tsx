@@ -1,13 +1,16 @@
 import { Link } from 'react-router-dom';
 import type { Bookmark } from '../types';
+import { FavoriteButton } from './FavoriteButton';
 import './BookmarkCard.css';
 
 interface BookmarkCardProps {
     bookmark: Bookmark;
     onDelete: (id: number) => void;
+    onToggleFavorite: (id: number) => void;
+    viewMode?: 'grid' | 'list';
 }
 
-export function BookmarkCard({ bookmark, onDelete }: BookmarkCardProps) {
+export function BookmarkCard({ bookmark, onDelete, onToggleFavorite, viewMode = 'grid' }: BookmarkCardProps) {
     const getDomain = (url: string) => {
         try {
             return new URL(url).hostname;
@@ -17,7 +20,7 @@ export function BookmarkCard({ bookmark, onDelete }: BookmarkCardProps) {
     };
 
     return (
-        <div className="bookmark-card">
+        <div className={`bookmark-card ${viewMode}`}>
             <div className="bookmark-header">
                 <div className="bookmark-favicon">
                     <img
@@ -32,10 +35,37 @@ export function BookmarkCard({ bookmark, onDelete }: BookmarkCardProps) {
                     <h3 className="bookmark-title">{bookmark.title}</h3>
                     <span className="bookmark-domain">{getDomain(bookmark.link)}</span>
                 </div>
+                <FavoriteButton
+                    isFavorite={bookmark.isFavorite}
+                    onToggle={() => onToggleFavorite(bookmark.id)}
+                    size="medium"
+                />
             </div>
 
             {bookmark.description && (
                 <p className="bookmark-description">{bookmark.description}</p>
+            )}
+
+            {/* Category badge */}
+            {bookmark.category && (
+                <div
+                    className="bookmark-category"
+                    style={{ backgroundColor: bookmark.category.color }}
+                >
+                    <span>{bookmark.category.icon}</span>
+                    <span>{bookmark.category.name}</span>
+                </div>
+            )}
+
+            {/* Tags */}
+            {bookmark.tags && bookmark.tags.length > 0 && (
+                <div className="bookmark-tags">
+                    {bookmark.tags.map((tag) => (
+                        <span key={tag.id} className="tag">
+                            {tag.name}
+                        </span>
+                    ))}
+                </div>
             )}
 
             <div className="bookmark-footer">

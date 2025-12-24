@@ -1,15 +1,28 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBookmarkStore } from '../stores/bookmarkStore';
 import { useToastStore } from '../stores/toastStore';
 import { BookmarkCard } from '../components/BookmarkCard';
+import { CategorySidebar } from '../components/CategorySidebar';
+import { ViewToggle } from '../components/ViewToggle';
 import './Bookmarks.css';
 
 export function Bookmarks() {
-    const { bookmarks, isLoading, error, fetchBookmarks, deleteBookmark } = useBookmarkStore();
+    const {
+        bookmarks,
+        pagination,
+        filters,
+        isLoading,
+        error,
+        fetchBookmarks,
+        deleteBookmark,
+        toggleFavorite,
+        setFilters
+    } = useBookmarkStore();
     const { addToast } = useToastStore();
-    const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [searchInput, setSearchInput] = useState('');
+    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
     useEffect(() => {
         fetchBookmarks();
@@ -26,39 +39,45 @@ export function Bookmarks() {
         }
     };
 
-    const filteredBookmarks = useMemo(() => {
-        let result = [...bookmarks];
+    const handleToggleFavorite = async (id: number) => {
+        await toggleFavorite(id);
+    };
 
-        // Search filter
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter(
-                (b) =>
-                    b.title.toLowerCase().includes(query) ||
-                    b.description?.toLowerCase().includes(query) ||
-                    b.link.toLowerCase().includes(query)
-            );
-        }
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        setFilters({ search: searchInput });
+    };
 
-        // Sort
-        switch (sortBy) {
-            case 'newest':
-                result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                break;
-            case 'oldest':
-                result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-                break;
-            case 'title':
-                result.sort((a, b) => a.title.localeCompare(b.title));
-                break;
-        }
+    const handleCategorySelect = (categoryId: number | undefined) => {
+        setShowFavoritesOnly(false);
+        setFilters({ categoryId, isFavorite: undefined });
+    };
 
-        return result;
-    }, [bookmarks, searchQuery, sortBy]);
+    const handleToggleFavorites = () => {
+        const newValue = !showFavoritesOnly;
+        setShowFavoritesOnly(newValue);
+        setFilters({
+            isFavorite: newValue ? true : undefined,
+            categoryId: undefined
+        });
+    };
+
+    const handleSortChange = (sortBy: 'newest' | 'oldest' | 'title') => {
+        setFilters({ sortBy });
+    };
+
+    const handlePageChange = (page: number) => {
+        setFilters({ ...filters, page });
+    };
+
+    const clearSearch = () => {
+        setSearchInput('');
+        setFilters({ search: undefined });
+    };
 
     if (isLoading && bookmarks.length === 0) {
         return (
-            <div className="bookmarks-container">
+            <div className="bookmarks-page">
                 <div className="loading-spinner">
                     <div className="spinner"></div>
                     <p>Đang tải...</p>
@@ -68,85 +87,141 @@ export function Bookmarks() {
     }
 
     return (
-        <div className="bookmarks-container">
-            <div className="bookmarks-header">
-                <div>
-                    <h1>Bookmarks của bạn</h1>
-                    <p>Quản lý tất cả các liên kết yêu thích ({bookmarks.length} bookmarks)</p>
-                </div>
-                <Link to="/bookmarks/create" className="btn-create">
-                    + Thêm mới
-                </Link>
-            </div>
+        <div className="bookmarks-page">
+            <CategorySidebar
+                selectedCategoryId={filters.categoryId}
+                onSelectCategory={handleCategorySelect}
+                showFavorites={true}
+                onToggleFavorites={handleToggleFavorites}
+                isFavoritesActive={showFavoritesOnly}
+            />
 
-            {/* Search and Filter */}
-            <div className="bookmarks-toolbar">
-                <div className="search-box">
-                    <span className="search-icon">🔍</span>
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm bookmark..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="search-input"
-                    />
-                    {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="search-clear">
-                            ×
-                        </button>
-                    )}
+            <div className="bookmarks-main">
+                <div className="bookmarks-header">
+                    <div>
+                        <h1>
+                            {showFavoritesOnly
+                                ? '⭐ Yêu thích'
+                                : filters.categoryId
+                                    ? 'Bookmarks trong category'
+                                    : 'Tất cả Bookmarks'}
+                        </h1>
+                        <p>
+                            {pagination?.total || 0} bookmarks
+                            {filters.search && ` • Tìm kiếm: "${filters.search}"`}
+                        </p>
+                    </div>
+                    <Link to="/bookmarks/create" className="btn-create">
+                        + Thêm mới
+                    </Link>
                 </div>
 
-                <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="sort-select"
-                >
-                    <option value="newest">Mới nhất</option>
-                    <option value="oldest">Cũ nhất</option>
-                    <option value="title">Theo tên A-Z</option>
-                </select>
-            </div>
-
-            {error && (
-                <div className="alert alert-error">
-                    {error}
-                </div>
-            )}
-
-            {filteredBookmarks.length === 0 ? (
-                <div className="empty-state">
-                    {searchQuery ? (
-                        <>
-                            <span className="empty-icon">🔍</span>
-                            <h2>Không tìm thấy bookmark</h2>
-                            <p>Không có kết quả cho "{searchQuery}"</p>
-                            <button onClick={() => setSearchQuery('')} className="btn-create">
-                                Xóa bộ lọc
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <span className="empty-icon">📚</span>
-                            <h2>Chưa có bookmark nào</h2>
-                            <p>Bắt đầu lưu các liên kết yêu thích của bạn</p>
-                            <Link to="/bookmarks/create" className="btn-create">
-                                Tạo bookmark đầu tiên
-                            </Link>
-                        </>
-                    )}
-                </div>
-            ) : (
-                <div className="bookmarks-grid">
-                    {filteredBookmarks.map((bookmark) => (
-                        <BookmarkCard
-                            key={bookmark.id}
-                            bookmark={bookmark}
-                            onDelete={handleDelete}
+                {/* Search and Filter */}
+                <div className="bookmarks-toolbar">
+                    <form className="search-box" onSubmit={handleSearch}>
+                        <span className="search-icon">🔍</span>
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm bookmark..."
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            className="search-input"
                         />
-                    ))}
+                        {searchInput && (
+                            <button type="button" onClick={clearSearch} className="search-clear">
+                                ×
+                            </button>
+                        )}
+                    </form>
+
+                    <div className="toolbar-right">
+                        <select
+                            value={filters.sortBy || 'newest'}
+                            onChange={(e) => handleSortChange(e.target.value as 'newest' | 'oldest' | 'title')}
+                            className="sort-select"
+                        >
+                            <option value="newest">Mới nhất</option>
+                            <option value="oldest">Cũ nhất</option>
+                            <option value="title">Theo tên A-Z</option>
+                        </select>
+
+                        <ViewToggle view={viewMode} onChange={setViewMode} />
+                    </div>
                 </div>
-            )}
+
+                {error && (
+                    <div className="alert alert-error">
+                        {error}
+                    </div>
+                )}
+
+                {bookmarks.length === 0 ? (
+                    <div className="empty-state">
+                        {filters.search ? (
+                            <>
+                                <span className="empty-icon">🔍</span>
+                                <h2>Không tìm thấy bookmark</h2>
+                                <p>Không có kết quả cho "{filters.search}"</p>
+                                <button onClick={clearSearch} className="btn-create">
+                                    Xóa bộ lọc
+                                </button>
+                            </>
+                        ) : showFavoritesOnly ? (
+                            <>
+                                <span className="empty-icon">⭐</span>
+                                <h2>Chưa có bookmark yêu thích</h2>
+                                <p>Click vào dấu sao để thêm bookmark vào mục yêu thích</p>
+                            </>
+                        ) : (
+                            <>
+                                <span className="empty-icon">📚</span>
+                                <h2>Chưa có bookmark nào</h2>
+                                <p>Bắt đầu lưu các liên kết yêu thích của bạn</p>
+                                <Link to="/bookmarks/create" className="btn-create">
+                                    Tạo bookmark đầu tiên
+                                </Link>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        <div className={`bookmarks-grid ${viewMode}`}>
+                            {bookmarks.map((bookmark) => (
+                                <BookmarkCard
+                                    key={bookmark.id}
+                                    bookmark={bookmark}
+                                    onDelete={handleDelete}
+                                    onToggleFavorite={handleToggleFavorite}
+                                    viewMode={viewMode}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {pagination && pagination.totalPages > 1 && (
+                            <div className="pagination">
+                                <button
+                                    className="page-btn"
+                                    onClick={() => handlePageChange(pagination.page - 1)}
+                                    disabled={pagination.page <= 1}
+                                >
+                                    ← Trước
+                                </button>
+                                <span className="page-info">
+                                    Trang {pagination.page} / {pagination.totalPages}
+                                </span>
+                                <button
+                                    className="page-btn"
+                                    onClick={() => handlePageChange(pagination.page + 1)}
+                                    disabled={pagination.page >= pagination.totalPages}
+                                >
+                                    Sau →
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 }

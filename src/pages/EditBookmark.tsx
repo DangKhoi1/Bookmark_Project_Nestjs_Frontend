@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useBookmarkStore } from '../stores/bookmarkStore';
+import { useCategoryStore } from '../stores/categoryStore';
+import { useTagStore } from '../stores/tagStore';
+import { TagInput } from '../components/TagInput';
 import './BookmarkForm.css';
 
 export function EditBookmark() {
@@ -9,21 +12,30 @@ export function EditBookmark() {
     const [title, setTitle] = useState('');
     const [link, setLink] = useState('');
     const [description, setDescription] = useState('');
+    const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
+    const [tagNames, setTagNames] = useState<string[]>([]);
+
     const { selectedBookmark, fetchBookmarkById, updateBookmark, isLoading, error, clearSelectedBookmark } = useBookmarkStore();
+    const { categories, fetchCategories } = useCategoryStore();
+    const { tags, fetchTags } = useTagStore();
     const navigate = useNavigate();
 
     useEffect(() => {
+        fetchCategories();
+        fetchTags();
         if (id) {
             fetchBookmarkById(parseInt(id));
         }
         return () => clearSelectedBookmark();
-    }, [id, fetchBookmarkById, clearSelectedBookmark]);
+    }, [id, fetchBookmarkById, clearSelectedBookmark, fetchCategories, fetchTags]);
 
     useEffect(() => {
         if (selectedBookmark) {
             setTitle(selectedBookmark.title);
             setLink(selectedBookmark.link);
             setDescription(selectedBookmark.description || '');
+            setCategoryId(selectedBookmark.categoryId || undefined);
+            setTagNames(selectedBookmark.tags?.map((t) => t.name) || []);
         }
     }, [selectedBookmark]);
 
@@ -35,10 +47,13 @@ export function EditBookmark() {
             await updateBookmark(parseInt(id), {
                 title,
                 link,
-                description: description || undefined
+                description: description || undefined,
+                categoryId: categoryId || null,
+                tagNames,
             });
             navigate('/bookmarks');
         } catch {
+            // Error handled by store
         }
     };
 
@@ -99,6 +114,33 @@ export function EditBookmark() {
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Mô tả ngắn về bookmark này..."
                             rows={3}
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="category">Category</label>
+                        <select
+                            id="category"
+                            value={categoryId || ''}
+                            onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+                            className="category-select"
+                        >
+                            <option value="">-- Không chọn --</option>
+                            {categories.map((cat) => (
+                                <option key={cat.id} value={cat.id}>
+                                    {cat.icon} {cat.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Tags</label>
+                        <TagInput
+                            selectedTags={tagNames}
+                            onChange={setTagNames}
+                            suggestions={tags}
+                            placeholder="Thêm tags (Enter để thêm)..."
                         />
                     </div>
 
